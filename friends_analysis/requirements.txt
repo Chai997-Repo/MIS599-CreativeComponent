@@ -1,0 +1,10 @@
+Scrapy
+boto3
+pandas
+numpy
+notebook
+matplotlib
+spacy
+networkx
+scikit-learn
+
