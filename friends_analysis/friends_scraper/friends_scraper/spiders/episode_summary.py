@@ -7,6 +7,9 @@ from datetime import datetime
 class EpisodeSummary(scrapy.Spider):
     name = "friends_episode_Summaries"
     start_urls = ['https://www.imdb.com/title/tt0108778/episodes']
+    custom_settings = {
+        'USER_AGENT' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
 
     def __init__(self, name = None, **kwargs):
         super(EpisodeSummary, self).__init__(name, **kwargs)
@@ -21,21 +24,21 @@ class EpisodeSummary(scrapy.Spider):
         # Store all episode summaries
         self.all_summaries = []
 
-        def parse(self, response):
-            seasons = response.css('select#bySeason option::attr(value)').getall()
+    def parse(self, response):
+        seasons = response.css('select#bySeason option::attr(value)').getall()
 
-            for season in seasons:
-                if season:
-                    # Create the dir to store the seasons
-                    season_dir_ = os.path.join(self.data_dir, f'season_{season}')
-                    os.makedirs(season_dir_, exist_ok=True)
+        for season in seasons:
+            if season:
+                # Create the dir to store the seasons
+                season_dir_ = os.path.join(self.data_dir, f'season_{season}')
+                os.makedirs(season_dir_, exist_ok=True)
 
-                    url_ = f'https://www.imdb.com/title/tt0108778/episodes?season={season}'
-                    yield scrapy.Request(
-                        url_,
-                        callback=self.parse_season,
-                        meta={'season_num': season, 'season_dir':season_dir_}
-                    )
+                url_ = f'https://www.imdb.com/title/tt0108778/episodes?season={season}'
+                yield scrapy.Request(
+                    url_,
+                    callback=self.parse_season,
+                    meta={'season_num': season, 'season_dir':season_dir_}
+                )
 
     def parse_season(self, response):
         seas_num = response.meta['season_num']
@@ -118,7 +121,7 @@ class EpisodeSummary(scrapy.Spider):
         with open(episode_file, 'w', encoding='utf-8') as f:
             json.dump(episode_data, f, ensure_ascii=False, indent=2)
 
-    def close(self, response):
+    def close(self, reason):
         all_summaries_ = os.path.join(self.data_dir, f'all_episode_summaries{self.timestamp}.json')
         with open(all_summaries_, 'w', encoding='utf-8') as f:
             json.dump({'episodes': self.all_summaries()}, f, ensure_ascii=False, indent=2)

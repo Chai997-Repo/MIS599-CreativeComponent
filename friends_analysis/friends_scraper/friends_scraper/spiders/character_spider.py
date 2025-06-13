@@ -8,6 +8,10 @@ class CharacterSpider(scrapy.Spider):
     name = "friends_characters"
     start_urls = ['https://www.imdb.com/title/tt0108778/fullcredits']
 
+    custom_settings = {
+        'USER_AGENT' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+
     def __init__(self, name = None, **kwargs):
         super(CharacterSpider, self).__init__(name, **kwargs)
 
@@ -22,70 +26,74 @@ class CharacterSpider(scrapy.Spider):
         # Creating individual directory for characters
         self.individual_dir = os.path.join(self.data_dir, "individual_directory")
         os.makedirs(self.individual_dir, exist_ok=True)
+    def parse(self, response):
+        yield from self.parse_cast(response)
 
-        def parse_cast(self, response):
-            # Extract the Main Cast information
+    def parse_cast(self, response):
+        # Extract the Main Cast information
 
-            table_cast = response.css('table.cast_list')
-            rows_cast = response.css('tr.odd, tr.even')
+        table_cast = response.css('table.cast_list')
+        rows_cast = response.css('tr.odd, tr.even')
 
-            characters_ = []
+        characters_ = []
 
-            for row in rows_cast:
-                name_ = row.css('td:nth-child(2) a::text').get()
-                if name_:
-                    actor_name = name_.strip()
+        for row in rows_cast:
+            name_ = row.css('td:nth-child(2) a::text').get()
+            if name_:
+                actor_name = name_.strip()
 
-                    # Extract the character name
-                    characters_group = row.css('td.character')
+                # Extract the character name
+                characters_group = row.css('td.character')
+                character_name = characters_group.css('a::text').get()
+
+                if not character_name:
                     character_name = characters_group.css('a::text').get()
 
-                    if not character_name:
-                        character_name = characters_group.css('a::text').get()
+                if character_name:
+                    character_name = re.sub(r'\s+', ' ', character_name).strip()
+                    character_name = re.sub(r'\s*/\s*.*', '', character_name)
 
-                    if character_name:
-                        character_name = re.sub(r'\s+', ' ', character_name).strip()
-                        character_name = re.sub(r'\s*/\s*.*', '', character_name)
+                    # Now Extracting the actor URL for more information
+                    url = row.css('td:nth-child(2) a::attr(href)').get()
+                    if url:
+                        actor_url = response.urljoin(url)
 
-                        # Now Extracting the actor URL for more information
-                        url = row.css('td:nth-child(2) a::attr(href)').get()
-                        if url:
-                            actor_url = response.urljoin(url)
+                    characters_.append({
+                        'actor_name': actor_name,
+                        'character_name':character_name,
+                        'actor_url':actor_url
 
-                        characters_.append({
-                            'actor_name': actor_name,
-                            'character_name':character_name,
-                            'actor_url':actor_url
+                    })
 
-                        })
+                    if actor_url:
+                        yield scrapy.Request(
+                            actor_url,
+                            callback=self.parse_actor,
+                            meta={'character_data':characters_[-1]}
+                        )
 
-                        if actor_url:
-                            yield scrapy.Request(
-                                actor_url,
-                                callback=self.parse_actor,
-                                meta={'character_data':characters_[-1]}
-                            )
+        file = os.path.join(self.data_dir, f'basic_characters_{self.timestamp}.json')
+        with open(file, 'w', encoding='utf-8') as f:
+            json.dump({'character': characters_}, f, ensure_ascii=False, indent=2)
 
-            file = os.path.join(self.data_dir, f'basic_characters_{self.timestamp}.json')
-            with open(file, 'w', encoding='utf-8') as f:
-                json.dump({'character': characters_}, f, ensure_ascii=False, indent=2)
+    def parse_actor(self, response):
+        char_data = response.meta['character_data']
 
-        def parse_actor(self, response):
-            char_data = response.meta['character_data']
+        # Extract the actor bio
+        actor_bio = response.css('div[data-testid="bio-content"] div.ipc-html-content-inner-div::text').get()
+        if actor_bio:
+            char_data['actor_bio'] = actor_bio.strip()
+        else:
+            char_data['actor_bio'] = "Not Available"
 
-            # Extract the actor bio
-            actor_bio = response.css('div.name-overview-bio::text').get()
-            if actor_bio:
-                char_data['actor_bio'] = actor_bio.strip()
+        # Extrac the image URL
+        image_url = response.css('img.ipc-image::attr(src)').get()
+        if image_url:
+            char_data['image_url'] = image_url
 
-            # Extrac the image URL
-            image_url = response.css('img.name-poster::attr(src)').get()
-            if image_url:
-                char_data['image_url'] = image_url
-
-            # Saving the individual character data 
-            actor_data = char_data['actor_name'].lower().replace(' ', '_')
-            character_file_ = os.path.join(self.individual_dir, f'{actor_data}.json')
-            with open(character_file_, 'w', encoding='utf-8') as f:
-                json.dump(char_data, f, ensure_ascii=False, indent=2)
-                
+        # Saving the individual character data 
+        actor_data = char_data['actor_name'].lower().replace(' ', '_')
+        character_file_ = os.path.join(self.individual_dir, f"{char_data['actor_name'].lower().replace(' ', '_')}.json")
+        with open(character_file_, 'w', encoding='utf-8') as f:
+            json.dump(char_data, f, ensure_ascii=False, indent=2)
+            

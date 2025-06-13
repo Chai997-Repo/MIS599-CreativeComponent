@@ -7,6 +7,9 @@ from datetime import datetime
 class TranscriptSpider(scrapy.Spider):
     name = "friends_transcripts"
     start_urls = ['https://subslikescript.com/series/Friends-108778']
+    custom_settings = {
+        'USER_AGENT' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
 
     def __init_(self, *args, **kwargs):
         super(TranscriptSpider, self).__init__(*args, **kwargs)
@@ -16,6 +19,8 @@ class TranscriptSpider(scrapy.Spider):
         # Creating the path/directory to store the data, if it doesn;t exist (current directory + 'data/transcripts')
         self.data_dir = os.path.join(os.getcwd(), 'data', 'transcripts')  
         os.makedirs(self.data_dir, exist_ok=True)
+    def parse(self, response):
+        yield from self.extract_seasons(response)
 
     # Method to extract all the season links
     def extract_seasons(self, response):
